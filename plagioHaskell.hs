@@ -48,6 +48,11 @@ sinAcento 'é' = 'e'
 sinAcento 'í' = 'i'
 sinAcento 'ó' = 'o'
 sinAcento 'ú' = 'u'
+sinAcento 'Á' = 'A'
+sinAcento 'É' = 'E'
+sinAcento 'Í' = 'I'
+sinAcento 'Ó' = 'O'
+sinAcento 'Ú' = 'U'
 sinAcento letra = letra
 
 
@@ -76,7 +81,7 @@ ultimosElementos cant texto  = drop (length texto - cant) texto
 
 -- 
 --punto 4
-data Bot = UnBot{
+data Bot = UnBot {
     formas :: [FormaDeteccion],
     fabricante :: String
 } 
@@ -87,30 +92,28 @@ botA = UnBot [copiaLiteral, leAgregaronIntro, empiezaIgual 10] "botter"
 botB :: Bot
 botB = UnBot [empiezaIgual 10, leAgregaronIntro] "botter"
 
-
-
-
 --5. Un bot detecta si una obra es plagio de otra si verifica alguna de las formas de detección que maneja.
 
-deteccion :: FormaDeteccion -> Obra -> Obra -> Bool
-deteccion forma obra obraOriginal = fecha obra > fecha obraOriginal && forma (contenido obra) (contenido obraOriginal)  
+deteccion :: Obra -> Obra -> FormaDeteccion -> Bool
+deteccion obra obraOriginal forma = fecha obra > fecha obraOriginal && forma (contenido obra) (contenido obraOriginal)  
 
-esPlagioDeEstaObra bot obra obraOriginal = any   (\f -> deteccion f obra obraOriginal)  (formas bot)
+esPlagioDeEstaObra :: Bot -> Obra -> Obra -> Bool
+esPlagioDeEstaObra bot obra obraOriginal = any (deteccion obra obraOriginal)  (formas bot)
 
 --6. Dado un conjunto de autores y un bot, detectar si es una cadena de plagiadores. Es decir, el segundo plagió al primero, el tercero al segundo, y así. Se considera que un autor plagió a otro cuando alguna de sus obras es plagio de alguna de las del otro según el bot.
 
 cadenaPlagiadores :: Bot ->  [Autor] -> Bool
-cadenaPlagiadores bot [ _]  = False
-cadenaPlagiadores bot [x1,x2]  = plagioA bot x1 x2
-cadenaPlagiadores bot (x1:x2:xs)  = plagioA bot x1 x2 && cadenaPlagiadores bot (x2:xs)
+cadenaPlagiadores bot [ _] = False
+cadenaPlagiadores bot [x1,x2] = plagioA bot x1 x2
+cadenaPlagiadores bot (x1:x2:xs) = plagioA bot x1 x2 && cadenaPlagiadores bot (x2:xs)
 
 plagioA :: Bot ->  Autor ->  Autor -> Bool
-plagioA bot autor autorOriginal = any   (esPlagioDeEsteAutor  bot autorOriginal) (obras autor)
+plagioA bot autor autorOriginal = any (esPlagioDeEsteAutor bot autorOriginal) (obras autor)
 
 esPlagioDeEsteAutor :: Bot -> Autor ->  Obra -> Bool
-esPlagioDeEsteAutor bot autorOriginal obra = any   (esPlagioDeEstaObra bot obra)   (obras autorOriginal)
+esPlagioDeEsteAutor bot autorOriginal obra = any (esPlagioDeEstaObra bot obra) (obras autorOriginal)
 
---plagioA bot autor autorOriginal = any   (\obra -> any (esPlagioDeEstaObra bot obra) (obras autorOriginal)) (obras autor)
+--plagioA bot autor autorOriginal = any (\obra -> any (esPlagioDeEstaObra bot obra) (obras autorOriginal)) (obras autor)
 
 -- 7. Dado un conjunto de autores y un bot, encontrar a los autores que  "hicieron plagio pero aprendieron",  que significa que luego de que el bot detectara que una de sus obras fue plagio de alguna de los otros autores, nunca más volvió a plagiar. En definitiva, su plagio detectado fue el primero y el último.
 
@@ -126,3 +129,36 @@ obrasPlagiadasDelAutor bot autor autores =  filter (esPlagioDeAlgunoDeEstosAutor
 
 esPlagioDeAlgunoDeEstosAutores :: Bot -> [Autor] -> Obra -> Bool
 esPlagioDeAlgunoDeEstosAutores  bot autores obra = any (\autor -> esPlagioDeEsteAutor bot autor obra) autores
+
+--8---------------------------------------------------
+obraInfinita :: Obra
+obraInfinita = UnaObra (repeat 'a') 2021
+
+--9---------------------------------------------------
+obraInfinita2 :: Obra
+obraInfinita2 = UnaObra (repeat 'a') 2025
+
+{-
+
+Suponiendo una consulta como: deteccion obraA obraInfinita copiaLiteral
+No importa cuál sea la forma de detección, como la fecha de la obra que se pregunta si es plagio es anterior, no se cumple y corta diciendo False, por Lazy evaluation no es necesario seguir evaluando el otro lado del &&.
+
+Ahora veamos los casos donde se cumple que la fecha es posterior:
+
+copiaLiteral:
+- Suponiendo la consulta: deteccion obraInfinita obraA copiaLiteral
+da False, por Lazy Evaluation. Al evaluar la igualdad de contenidos no necesita evaluar toda la lista infinita para saber que los strings son distintos, con los primeros caracteres alcanza.
+- Pero si consulto deteccion obraInfinita2 obraInfinita copiaLiteral, se cuelga, porque para saber si dos strings iguales son iguales necesita recorrerlos todos, aún con lazy evaluation.
+
+empiezaIgual:
+- Suponiendo la consulta: deteccion obraInfinita obraA empiezaIgual
+Entonces da False, pues verifica con take que sean iguales los contenidos y eso da false. Por Lazy evaluation no es necesario evaluar la lista infinita para el take.
+- Suponiendo la consulta: deteccion obraInfinita2 obraInfinita empiezaIgual
+Ahí se cuelga, porque nunca llega a comparar las longitudes de los contenidos, aún con lazy evaluation. Es decir, aún si una es infinita y la otra empieza igual, jamás cortará.
+
+leAgregaronIntro:
+- Suponiendo la consulta: deteccion obraInfinita obraA leAgregaronIntro
+Aún teniendo lazy evaluation, para el calcular el length del contenido de la obra infinita se cuelga, antes de poder hacer el drop.
+- Ahora, si hacemos al revés: deteccion obraA obraInfinita leAgregaronIntro
+Se colgaría, pues se pide hacer un ultimosElementos, que a su vez necesita el length de la lista infinita, no hay Lazy evaluation que lo salve.
+-}
